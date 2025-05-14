@@ -1,0 +1,10 @@
+Dashboard/
+translogicai-backend/uploads/
+translogicai-backend/.env
+translogicai-frontend/node_modules/
+translogicai-backend/node_modules/
+node_modules/
+.env
+package-lock.json
+.DS_Store
+Thumbs.db
