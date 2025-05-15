@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TransLogic AI - Admin Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>  
+  <header>
+    <h1>TransLogic AI - Company Dashboard</h1>
+  </header>
+  <main>
+    <section class="controls">
+      <input type="text" id="searchInput" placeholder="Search by driver, vehicle, or status...">
+    </section>
+    <section>
+      <table id="vehiclesTable">
+        <thead>
+          <tr>
+            <th>S.No</th>
+            <th>Owner Name</th>
+            <th>Driver Name</th>
+            <th>Vehicle Number</th>
+            <th>Vehicle Name</th>
+            <th>Capacity</th>
+            <th>Status</th>
+            <th>Documents</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Data will be populated by JS -->
+        </tbody>
+      </table>
+    </section>
+    <div id="modal" class="modal hidden">
+      <div class="modal-content">
+        <span id="closeModal" class="close">&times;</span>
+        <div id="modalBody"></div>
+      </div>
+    </div>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
