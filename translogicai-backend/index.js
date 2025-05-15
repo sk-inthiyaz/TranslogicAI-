@@ -1,13 +1,28 @@
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const path = require("path");
 require("dotenv").config();
 
 const db = require('./models/db');
 
 const app = express();
-app.use(cors());
+// Global request logger
+app.use((req, res, next) => {
+  console.log(`[REQUEST] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Configure CORS to allow requests from any origin during development
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+
+// Serve uploaded files statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 const routeHandler = require("./routes/route");
@@ -16,6 +31,7 @@ const logisticsHandler = require("./routes/logistics");
 const detectObjectsHandler = require("./routes/detectObjects");
 const customerHandler = require('./routes/customer');
 const vehicleHandler = require('./routes/vehicle');
+const driverHandler = require('./routes/driver');
 
 app.use("/api/route", routeHandler);        // handles /api/route
 app.use("/api/weather", weatherHandler);    // optional, for weather-only
@@ -23,6 +39,7 @@ app.use("/api/logistics", logisticsHandler); // main delivery logic
 app.use("/api/detect-objects", detectObjectsHandler); // handles /api/detect-objects
 app.use('/api/customer', customerHandler); // handles /api/customer
 app.use('/api/vehicle', vehicleHandler); // handles /api/vehicle
+app.use('/api/driver', driverHandler); // handles /api/driver
 
 // Chat endpoint if needed
 app.post("/api/chat", async (req, res) => {
