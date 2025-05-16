@@ -1,6 +1,5 @@
 // Fetch and render vehicle/driver data
-const API_URL = 'http://localhost:5000/api/vehicle/list/all';
-
+const API_URL = 'http://localhost:5000/vehicle/list/all';
 const tableBody = document.querySelector('#vehiclesTable tbody');
 const searchInput = document.getElementById('searchInput');
 const modal = document.getElementById('modal');
@@ -79,11 +78,14 @@ searchInput.addEventListener('input', (e) => {
 // View documents in modal
 async function viewDocuments(vehicleId) {
   try {
-    const response = await fetch(`${API_URL}/${vehicleId}`);
-    const vehicle = await response.json();
-    
+    // Fetch all vehicles to get the full vehicle object by ID
+    const response = await fetch(API_URL);
+    const data = await response.json();
+    const vehicle = (data.vehicles || []).find(v => v.id === vehicleId);
+    if (!vehicle) throw new Error('Vehicle not found');
+
     const documentsList = Object.entries(vehicle.documents)
-      .filter(([, value]) => value) // Only show uploaded documents
+      .filter(([, value]) => value)
       .map(([key, value]) => `
         <div class="document-item">
           <span class="document-label">${key.replace(/([A-Z])/g, ' $1').trim()}:</span>
@@ -107,7 +109,7 @@ async function viewDocuments(vehicleId) {
 // Update vehicle status
 async function updateStatus(vehicleId, newStatus) {
   try {
-    const response = await fetch(`${API_URL}/${vehicleId}/status`, {
+    const response = await fetch(`http://localhost:5000/vehicle/list/all/${vehicleId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -137,6 +139,37 @@ window.addEventListener('click', (e) => {
     modal.classList.add('hidden');
   }
 });
+
+// Vehicle form submission
+const vehicleForm = document.getElementById('vehicleForm');
+if (vehicleForm) {
+  vehicleForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const formData = new FormData(vehicleForm);
+    try {
+      const response = await fetch('http://localhost:5000/vehicle/add', {
+        method: 'POST',
+        body: formData
+      });
+      if (response.ok) {
+        alert('Vehicle added successfully!');
+        vehicleForm.reset();
+        fetchVehicles();
+      } else {
+        let data;
+        try {
+          data = await response.json();
+        } catch (jsonErr) {
+          data = { error: 'Server error or invalid response' };
+        }
+        alert('Error adding vehicle: ' + (data.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('Network error while adding vehicle. Make sure the backend is running and accessible at http://localhost:5000/vehicle/add');
+      console.error('Vehicle add error:', err);
+    }
+  });
+}
 
 // Initial load
 fetchVehicles();

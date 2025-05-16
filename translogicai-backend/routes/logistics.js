@@ -3,6 +3,7 @@ const axios = require("axios");
 const router = express.Router();
 const calculatePrice = require("../utils/calculatePrice");
 const getWeather = require("../utils/getWeather");
+const Load = require('../models/Load');
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const DAPI_KEY = process.env.Directions_API_KEY;
@@ -23,9 +24,9 @@ async function getCoordinates(place) {
 }
 
 router.post("/", async (req, res) => {
-  const { pickup, drop, weight, urgency } = req.body;
+  const { pickup, drop, weight, urgency, cargo, customerName, customerPhone } = req.body;
 
-  if (!pickup || !drop || !weight || !urgency) {
+  if (!pickup || !drop || !weight || !urgency || !cargo || !customerName || !customerPhone) {
     return res.status(400).json({ reply: "All fields are required." });
   }
 
@@ -69,6 +70,19 @@ router.post("/", async (req, res) => {
     const reply =
       geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text ||
       "No smart suggestion available.";
+
+    // Save load details to DB
+    await Load.create({
+      pickup,
+      drop,
+      weight,
+      urgency,
+      cargo,
+      customerName,
+      customerPhone,
+      status: 'Pending',
+      price
+    });
 
     res.json({
       reply,

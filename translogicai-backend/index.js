@@ -38,7 +38,12 @@ app.use("/api/weather", weatherHandler);    // optional, for weather-only
 app.use("/api/logistics", logisticsHandler); // main delivery logic
 app.use("/api/detect-objects", detectObjectsHandler); // handles /api/detect-objects
 app.use('/api/customer', customerHandler); // handles /api/customer
+
+// Mount the vehicle router at root as well as /vehicle for direct /list/all access
+app.use('/vehicle', vehicleHandler);
+app.use('/', vehicleHandler); // This allows /list/all to work directly
 app.use('/api/vehicle', vehicleHandler); // handles /api/vehicle
+
 app.use('/api/driver', driverHandler); // handles /api/driver
 
 // Chat endpoint if needed

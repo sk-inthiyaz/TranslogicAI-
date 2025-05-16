@@ -18,6 +18,7 @@ const vehicleSchema = new mongoose.Schema({
     driverImage: String,
     tax: String // Add tax document path
   },
+  location: { type: String }, // Added location field
   createdAt: { type: Date, default: Date.now }
 });
 

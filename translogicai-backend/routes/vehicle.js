@@ -89,9 +89,24 @@ router.post('/add', upload.fields([
 });
 
 // Get all vehicles for a driver
-router.get('/list/:driverId', async (req, res) => {
+router.get('/list/driver/:driverId', async (req, res) => {
   try {
-    const vehicles = await Vehicle.find({ driverId: req.params.driverId });
+    const driverId = req.params.driverId;
+    console.log('Fetching vehicles for driverId:', driverId);
+
+    // Try to cast to ObjectId if possible
+    let queryDriverId = driverId;
+    if (mongoose.Types.ObjectId.isValid(driverId)) {
+      queryDriverId = new mongoose.Types.ObjectId(driverId);
+    }
+
+    const vehicles = await Vehicle.find({ driverId: queryDriverId });
+    console.log('Vehicles found for driver:', vehicles.length);
+
+    if (!vehicles || vehicles.length === 0) {
+      return res.status(404).json({ error: 'No vehicles found' });
+    }
+
     res.json(vehicles);
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
@@ -213,6 +228,41 @@ router.get('/list/all', async (req, res) => {
   }
 });
 
+// Get vehicle by ID (for MyVehicles page)
+router.get('/list/:id', async (req, res) => {
+  try {
+    const vehicle = await Vehicle.findById(req.params.id).populate('driverId', 'fullName phone').lean();
+    if (!vehicle) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+    // Format response similar to /list/all
+    const result = {
+      id: vehicle._id,
+      ownerName: vehicle.driverId?.fullName || 'Unknown',
+      driverName: vehicle.files?.driverName || 'Unknown',
+      vehicleNumber: vehicle.vehicleNumber,
+      vehicleName: vehicle.vehicleName,
+      capacity: vehicle.capacity,
+      status: vehicle.status,
+      documents: {
+        permit: normalizeFilePath(vehicle.files?.permit),
+        rc: normalizeFilePath(vehicle.files?.rc),
+        fitness: normalizeFilePath(vehicle.files?.fitness),
+        puc: normalizeFilePath(vehicle.files?.puc),
+        insurance: normalizeFilePath(vehicle.files?.insurance),
+        vehicleImage: normalizeFilePath(vehicle.files?.vehicleImage),
+        driverLicence: normalizeFilePath(vehicle.files?.driverLicence),
+        driverImage: normalizeFilePath(vehicle.files?.driverImage),
+        tax: normalizeFilePath(vehicle.files?.tax)
+      },
+      phone: vehicle.driverId?.phone || 'Unknown'
+    };
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
 // Update vehicle status
 router.put('/list/all/:id/status', async (req, res) => {
   try {
@@ -236,6 +286,28 @@ router.put('/list/all/:id/status', async (req, res) => {
     res.json({ message: 'Status updated successfully', vehicle });
   } catch (err) {
     console.error('Error updating vehicle status:', err);
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// Update vehicle location route
+router.post('/:vehicleId/location', async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const { location } = req.body;
+    if (!location) {
+      return res.status(400).json({ error: 'Location is required' });
+    }
+    const vehicle = await Vehicle.findByIdAndUpdate(
+      vehicleId,
+      { location },
+      { new: true }
+    );
+    if (!vehicle) {
+      return res.status(404).json({ error: 'Vehicle not found' });
+    }
+    res.json({ message: 'Location updated', vehicle });
+  } catch (err) {
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 });

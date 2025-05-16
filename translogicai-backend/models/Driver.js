@@ -42,6 +42,10 @@ const driverSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  photo: {
+    type: String,
+    default: ''
+  },
   createdAt: {
     type: Date,
     default: Date.now
