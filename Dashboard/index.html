@@ -42,5 +42,20 @@
     </div>
   </main>
   <script src="app.js"></script>
+  <!-- Chat Widget (fixed position) -->
+  <div id="chatWidget" class="chat-widget hidden">
+    <div class="chat-header">
+      <span>AI Chat</span>
+      <button id="closeChat" class="chat-close">&times;</button>
+    </div>
+    <div id="chatMessages" class="chat-messages"></div>
+    <form id="chatForm" class="chat-form">
+      <input type="text" id="chatInput" placeholder="Type your message..." autocomplete="off" />
+      <button type="submit">Send</button>
+    </form>
+  </div>
+  <!-- Chat Toggle Button -->
+  <button id="openChat" class="chat-toggle">💬 Chat</button>
+  <script src="chat.js"></script>
 </body>
 </html>
