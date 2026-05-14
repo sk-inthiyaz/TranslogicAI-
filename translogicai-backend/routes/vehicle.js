@@ -290,7 +290,67 @@ router.put('/list/all/:id/status', async (req, res) => {
   }
 });
 
-// Update vehicle location route
+// Hardcoded city coords lookup (same table as driver.js) ────────────────────
+const CITY_COORDS_V = {
+  "hyderabad":17.3850,"hyderabad_lng":78.4867,
+};
+// Inline coords function (avoids duplicating the whole table)
+function getVehicleCityCoords(cityName) {
+  const CITIES = {
+    "hyderabad":      { lat: 17.3850, lng: 78.4867 },
+    "warangal":       { lat: 17.9784, lng: 79.6010 },
+    "nizamabad":      { lat: 18.6726, lng: 78.0940 },
+    "karimnagar":     { lat: 18.4386, lng: 79.1288 },
+    "khammam":        { lat: 17.2473, lng: 80.1514 },
+    "nalgonda":       { lat: 17.0575, lng: 79.2680 },
+    "siddipet":       { lat: 18.1018, lng: 78.8520 },
+    "mahbubnagar":    { lat: 16.7373, lng: 78.0001 },
+    "ghatkesar":      { lat: 17.4421, lng: 78.6932 },
+    "secunderabad":   { lat: 17.4399, lng: 78.4983 },
+    "medak":          { lat: 18.0440, lng: 78.2646 },
+    "vijayawada":     { lat: 16.5062, lng: 80.6480 },
+    "visakhapatnam":  { lat: 17.6868, lng: 83.2185 },
+    "vizag":          { lat: 17.6868, lng: 83.2185 },
+    "guntur":         { lat: 16.3067, lng: 80.4365 },
+    "nellore":        { lat: 14.4426, lng: 79.9865 },
+    "kurnool":        { lat: 15.8281, lng: 78.0373 },
+    "rajahmundry":    { lat: 17.0005, lng: 81.8040 },
+    "tirupati":       { lat: 13.6288, lng: 79.4192 },
+    "kadapa":         { lat: 14.4673, lng: 78.8242 },
+    "anantapur":      { lat: 14.6819, lng: 77.6006 },
+    "eluru":          { lat: 16.7107, lng: 81.0952 },
+    "ongole":         { lat: 15.5057, lng: 80.0499 },
+    "srikakulam":     { lat: 18.2949, lng: 83.8938 },
+    "kakinada":       { lat: 16.9891, lng: 82.2475 },
+    "nandyal":        { lat: 15.4786, lng: 78.4836 },
+    "chittoor":       { lat: 13.2172, lng: 79.1003 },
+    "chennai":        { lat: 13.0827, lng: 80.2707 },
+    "coimbatore":     { lat: 11.0168, lng: 76.9558 },
+    "madurai":        { lat: 9.9252,  lng: 78.1198 },
+    "bangalore":      { lat: 12.9716, lng: 77.5946 },
+    "bengaluru":      { lat: 12.9716, lng: 77.5946 },
+    "mysore":         { lat: 12.2958, lng: 76.6394 },
+    "hubli":          { lat: 15.3647, lng: 75.1240 },
+    "mumbai":         { lat: 19.0760, lng: 72.8777 },
+    "pune":           { lat: 18.5204, lng: 73.8567 },
+    "nagpur":         { lat: 21.1458, lng: 79.0882 },
+    "delhi":          { lat: 28.7041, lng: 77.1025 },
+    "kolkata":        { lat: 22.5726, lng: 88.3639 },
+    "ahmedabad":      { lat: 23.0225, lng: 72.5714 },
+    "surat":          { lat: 21.1702, lng: 72.8311 },
+    "jaipur":         { lat: 26.9124, lng: 75.7873 },
+    "lucknow":        { lat: 26.8467, lng: 80.9462 },
+  };
+  if (!cityName) return null;
+  const key = cityName.trim().toLowerCase();
+  if (CITIES[key]) return CITIES[key];
+  for (const [k, v] of Object.entries(CITIES)) {
+    if (key.includes(k) || k.includes(key)) return v;
+  }
+  return null;
+}
+
+// Update vehicle location — saves city name + lat/lng ────────────────────────
 router.post('/:vehicleId/location', async (req, res) => {
   try {
     const { vehicleId } = req.params;
@@ -298,18 +358,71 @@ router.post('/:vehicleId/location', async (req, res) => {
     if (!location) {
       return res.status(400).json({ error: 'Location is required' });
     }
-    const vehicle = await Vehicle.findByIdAndUpdate(
-      vehicleId,
-      { location },
-      { new: true }
-    );
+
+    // Resolve city to coordinates
+    const coords = getVehicleCityCoords(location);
+    const update = { location: location.trim() };
+    if (coords) {
+      update.lat = coords.lat;
+      update.lng = coords.lng;
+    }
+
+    const vehicle = await Vehicle.findByIdAndUpdate(vehicleId, update, { new: true });
     if (!vehicle) {
       return res.status(404).json({ error: 'Vehicle not found' });
     }
-    res.json({ message: 'Location updated', vehicle });
+    console.log(`🚛 Vehicle ${vehicle.vehicleNumber} location: ${location} → lat:${vehicle.lat}, lng:${vehicle.lng}`);
+    res.json({
+      message: 'Location updated',
+      location: vehicle.location,
+      lat: vehicle.lat,
+      lng: vehicle.lng,
+      coordsFound: !!(vehicle.lat && vehicle.lng),
+      vehicle,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Server error', details: err.message });
+  }
+});
+
+// GET nearby loads for a specific vehicle (by vehicle's lat/lng) ─────────────
+router.get('/:vehicleId/nearby-loads', async (req, res) => {
+  try {
+    const { vehicleId } = req.params;
+    const vehicle = await Vehicle.findById(vehicleId);
+    if (!vehicle) return res.status(404).json({ error: 'Vehicle not found' });
+    if (!vehicle.lat || !vehicle.lng) {
+      return res.json({ count: 0, loads: [], warning: 'Set vehicle location first' });
+    }
+
+    const Load = require('../models/Load');
+    // Haversine inline
+    const hav = (lat1, lng1, lat2, lng2) => {
+      const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    };
+
+    const allPending = await Load.find({ status: 'Pending' });
+    const nearby = allPending
+      .map(load => {
+        const obj = load.toObject();
+        // Resolve pickup coords if missing
+        if (!obj.pickupLat || !obj.pickupLng) {
+          const c = getVehicleCityCoords(obj.pickup);
+          if (c) { obj.pickupLat = c.lat; obj.pickupLng = c.lng; }
+        }
+        if (!obj.pickupLat || !obj.pickupLng) return null;
+        const dist = hav(vehicle.lat, vehicle.lng, obj.pickupLat, obj.pickupLng);
+        return dist <= 50 ? { ...obj, distanceFromVehicle: Math.round(dist) } : null;
+      })
+      .filter(Boolean);
+
+    res.json({ count: nearby.length, loads: nearby });
   } catch (err) {
     res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
 module.exports = router;
+
