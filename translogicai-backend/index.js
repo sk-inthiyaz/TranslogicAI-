@@ -6,6 +6,7 @@ require("dotenv").config();
 
 const mongoose = require('mongoose');
 
+
 // Pre-register all Mongoose models before any route loads them
 require('./models/db');
 
