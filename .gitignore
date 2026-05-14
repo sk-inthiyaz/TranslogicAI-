@@ -8,3 +8,7 @@ node_modules/
 package-lock.json
 .DS_Store
 Thumbs.db
+
+# Interview notes — do not push
+DEEPDIVE/
+MDfiles/
