@@ -18,7 +18,9 @@ const vehicleSchema = new mongoose.Schema({
     driverImage: String,
     tax: String // Add tax document path
   },
-  location: { type: String }, // Added location field
+  location: { type: String },      // city name
+  lat:      { type: Number },      // geocoded latitude
+  lng:      { type: Number },      // geocoded longitude
   createdAt: { type: Date, default: Date.now }
 });
 
