@@ -49,7 +49,17 @@ const driverSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
-  }
+  },
+  location: {
+    type: String,
+    default: ''
+  },
+  isAvailable: {
+    type: Boolean,
+    default: true
+  },
+  lat: { type: Number, default: null },
+  lng: { type: Number, default: null }
 });
 
 module.exports = mongoose.model('Driver', driverSchema);
