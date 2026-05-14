@@ -4,7 +4,10 @@ const axios = require("axios");
 const path = require("path");
 require("dotenv").config();
 
-const db = require('./models/db');
+const mongoose = require('mongoose');
+
+// Pre-register all Mongoose models before any route loads them
+require('./models/db');
 
 const app = express();
 // Global request logger
@@ -67,6 +70,27 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-app.listen(5000, () =>
-  console.log("✅ Server running at http://localhost:5000")
-);
+// ✅ Only start the server AFTER MongoDB is connected
+mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 10000,
+  socketTimeoutMS: 45000,
+  family: 4
+})
+  .then(() => {
+    console.log('✅ MongoDB connected successfully');
+    app.listen(5000, () =>
+      console.log('✅ Server running at http://localhost:5000')
+    );
+  })
+  .catch(err => {
+    console.error('❌ MongoDB connection failed:', err.message);
+    process.exit(1);
+  });
+
+mongoose.connection.on('disconnected', () => {
+  console.log('🔌 MongoDB disconnected');
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB error:', err.message);
+});
