@@ -71,19 +71,8 @@ router.post("/", async (req, res) => {
       geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text ||
       "No smart suggestion available.";
 
-    // Save load details to DB
-    await Load.create({
-      pickup,
-      drop,
-      weight,
-      urgency,
-      cargo,
-      customerName,
-      customerPhone,
-      status: 'Pending',
-      price
-    });
-
+    // ✅ Quote only — do NOT save to DB here.
+    // The load is saved only when customer confirms via POST /api/logistics/book
     res.json({
       reply,
       price,
@@ -91,10 +80,95 @@ router.post("/", async (req, res) => {
       eta: Math.round(duration),
       carbon: (distance * 0.21).toFixed(2),
       vehicle: urgency === "High" ? "Bike" : "Van",
+      // Return coords so frontend can pass them to /book
+      pickupLat: pickupCoords[1],
+      pickupLng: pickupCoords[0],
+      distanceKm: distance,
     });
   } catch (err) {
     console.error("❌ Error in logistics:", err.message);
     res.status(500).json({ reply: "Internal server error in logistics." });
+  }
+});
+
+// ── POST /book — Customer confirms booking, load saved as Pending ─────────────
+// Called ONLY when customer clicks "Book Truck Now"
+router.post("/book", async (req, res) => {
+  const { pickup, drop, weight, urgency, cargo, customerName, customerPhone,
+          price, distanceKm, pickupLat, pickupLng } = req.body;
+
+  if (!pickup || !drop || !weight || !urgency) {
+    return res.status(400).json({ error: "Missing required booking fields." });
+  }
+
+  try {
+    // If coords weren't passed, geocode now
+    let pLat = pickupLat, pLng = pickupLng;
+    if (!pLat || !pLng) {
+      try {
+        const coords = await getCoordinates(pickup);
+        pLat = coords[1]; pLng = coords[0];
+      } catch { /* coords optional */ }
+    }
+
+    const load = await Load.create({
+      pickup,
+      drop,
+      weight:        parseFloat(weight),
+      urgency,
+      cargo:         cargo || "General Goods",
+      customerName:  customerName || "Guest",
+      customerPhone: customerPhone || "0000000000",
+      price:         parseFloat(price) || 0,
+      distanceKm:    parseFloat(distanceKm) || 0,
+      pickupLat:     pLat || null,
+      pickupLng:     pLng || null,
+      status:        "Pending",   // ← Pending, NOT Assigned
+    });
+
+    res.status(201).json({
+      message: "Booking confirmed. Nearby drivers are being notified.",
+      loadId: load._id,
+    });
+  } catch (err) {
+    console.error("❌ Book error:", err.message);
+    res.status(500).json({ error: "Failed to create booking." });
+  }
+});
+// ── GET /load/:id — Customer polls this to check if driver accepted ──────────
+router.get("/load/:id", async (req, res) => {
+  try {
+    const load = await Load.findById(req.params.id)
+      .populate("assignedDriverId", "fullName phone location");
+    if (!load) return res.status(404).json({ error: "Load not found" });
+    res.json({
+      _id:          load._id,
+      pickup:       load.pickup,
+      drop:         load.drop,
+      weight:       load.weight,
+      urgency:      load.urgency,
+      price:        load.price,
+      status:       load.status,
+      createdAt:    load.createdAt,
+      distanceKm:   load.distanceKm,
+      driver: load.assignedDriverId ? {
+        name:     load.assignedDriverId.fullName,
+        phone:    load.assignedDriverId.phone,
+        location: load.assignedDriverId.location,
+      } : null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ── GET /loads — All loads (driver's Loads page uses this) ───────────────────
+router.get("/loads", async (req, res) => {
+  try {
+    const loads = await Load.find().sort({ createdAt: -1 }).limit(100);
+    res.json(loads);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
   }
 });
 
