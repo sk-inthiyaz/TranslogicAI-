@@ -171,5 +171,91 @@ if (vehicleForm) {
   });
 }
 
-// Initial load
+// ── Contact Messages ──────────────────────────────────────────────────────────
+const messagesPanel = document.getElementById('messagesPanel');
+const messagesList = document.getElementById('messagesList');
+const msgBadge = document.getElementById('msgBadge');
+const toggleMessagesBtn = document.getElementById('toggleMessages');
+const closeMessagesBtn = document.getElementById('closeMessages');
+
+async function fetchMessages() {
+  try {
+    const response = await fetch('http://localhost:5000/api/contact');
+    const data = await response.json();
+    if (data.messages) {
+      renderMessages(data.messages);
+      if (data.unreadCount > 0) {
+        msgBadge.textContent = data.unreadCount;
+        msgBadge.classList.remove('hidden');
+      } else {
+        msgBadge.classList.add('hidden');
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching messages:', err);
+  }
+}
+
+function renderMessages(messages) {
+  if (!messages || messages.length === 0) {
+    messagesList.innerHTML = `
+      <div style="padding:40px 20px;text-align:center;color:#94a3b8;">
+        <div style="font-size:32px;margin-bottom:8px">📭</div>
+        <div>No messages yet</div>
+      </div>`;
+    return;
+  }
+
+  messagesList.innerHTML = messages.map(msg => {
+    const dateStr = new Date(msg.createdAt).toLocaleString();
+    return `
+      <div class="message-card ${msg.read ? 'read' : 'unread'}" onclick="markMessageRead('${msg._id}', this)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <strong style="font-size:14px;color:#0f172a;">${msg.name}</strong>
+            <span class="sender-badge ${msg.senderType}">${msg.senderType === 'driver' ? '🚛 Driver' : '👤 Customer'}</span>
+          </div>
+          <span style="font-size:11px;color:#94a3b8;">${dateStr}</span>
+        </div>
+        <div style="font-size:13px;font-weight:700;color:#1e3a8a;margin-bottom:4px;">${msg.subject}</div>
+        <div style="font-size:13px;color:#475569;line-height:1.5;">${msg.message}</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">
+          ${msg.phone ? '📞 ' + msg.phone : ''} ${msg.email ? '✉️ ' + msg.email : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function markMessageRead(msgId, el) {
+  try {
+    await fetch(`http://localhost:5000/api/contact/${msgId}/read`, { method: 'PUT' });
+    el.classList.remove('unread');
+    el.classList.add('read');
+    // Refresh badge count
+    fetchMessages();
+  } catch (err) {
+    console.error('Error marking message read:', err);
+  }
+}
+
+if (toggleMessagesBtn) {
+  toggleMessagesBtn.addEventListener('click', () => {
+    messagesPanel.classList.toggle('hidden');
+    if (!messagesPanel.classList.contains('hidden')) {
+      fetchMessages();
+    }
+  });
+}
+
+if (closeMessagesBtn) {
+  closeMessagesBtn.addEventListener('click', () => {
+    messagesPanel.classList.add('hidden');
+  });
+}
+
+// Poll for new messages every 30 seconds
+fetchMessages();
+setInterval(fetchMessages, 30000);
+
+// Initial vehicle load
 fetchVehicles();

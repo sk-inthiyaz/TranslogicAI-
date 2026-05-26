@@ -5,7 +5,7 @@ const Vehicle = require('../models/Vehicle');
 const Driver = require('../models/Driver');
 const mongoose = require('mongoose');
 
-console.log('vehicle.js loaded');
+
 
 // Helper function to convert file paths to web-accessible URLs
 function normalizeFilePath(filePath) {
@@ -101,7 +101,6 @@ router.get('/list/driver/:driverId', async (req, res) => {
     }
 
     const vehicles = await Vehicle.find({ driverId: queryDriverId });
-    console.log('Vehicles found for driver:', vehicles.length);
 
     if (!vehicles || vehicles.length === 0) {
       return res.status(404).json({ error: 'No vehicles found' });
@@ -115,18 +114,11 @@ router.get('/list/driver/:driverId', async (req, res) => {
 
 // Get all vehicles with driver details (for dashboard)
 router.get('/list/all', async (req, res) => {
-  console.log('--- /list/all route hit ---');
   try {
-    console.log('Starting vehicle list fetch...');
-    console.log('Database state:', mongoose.connection.readyState);
     
     if (mongoose.connection.readyState !== 1) {
-      console.error('Database not connected. State:', mongoose.connection.readyState);
-      console.error('Returning error: Database connection not ready');
       throw new Error('Database connection not ready');
     }
-    
-    console.log('Database connection verified, attempting to fetch vehicles...');
 
     // Fetch vehicles and populate driverId
     let vehicles;
@@ -135,36 +127,20 @@ router.get('/list/all', async (req, res) => {
         .populate('driverId', 'fullName phone')
         .lean()
         .exec();
-      console.log('Vehicle.find().populate() executed. Vehicles:', vehicles.length);
+      console.log(`Vehicle list: ${vehicles.length} found`);
     } catch (popErr) {
-      console.error('Error during Vehicle.find().populate:', popErr);
-      console.error('Returning error: Error populating driver details');
+      console.error('Error during Vehicle.find().populate:', popErr.message);
       return res.status(500).json({ error: 'Error populating driver details', details: popErr.message });
     }
 
     if (!vehicles || vehicles.length === 0) {
-      console.warn('No vehicles found in the database.');
-      console.warn('Returning error: No vehicles found');
       return res.status(404).json({ error: 'No vehicles found' });
     }
 
     // Check for population issues
     const populationErrors = vehicles.filter(v => !v.driverId || !v.driverId.fullName);
     if (populationErrors.length > 0) {
-      console.warn('Some vehicles have missing or mismatched driver references:', populationErrors.map(v => v._id));
-      // Optionally, return a warning in the response
-      // return res.status(500).json({ error: 'Some vehicles have missing driver references', vehicleIds: populationErrors.map(v => v._id) });
-    }
-
-    // Log a sample vehicle for debugging
-    console.log('Vehicles found:', vehicles.length);
-    if (vehicles.length > 0) {
-      console.log('Sample vehicle data:', JSON.stringify({
-        _id: vehicles[0]._id,
-        driverId: vehicles[0].driverId,
-        vehicleNumber: vehicles[0].vehicleNumber,
-        files: vehicles[0].files
-      }, null, 2));
+      console.warn(`${populationErrors.length} vehicles with missing driver refs`);
     }
 
     const enrichedVehicles = vehicles.map(vehicle => ({
@@ -189,23 +165,11 @@ router.get('/list/all', async (req, res) => {
       phone: vehicle.driverId?.phone || 'Unknown'
     }));
 
-    console.log('Successfully processed vehicles. Count:', enrichedVehicles.length);
-    console.log('Returning successful response for /list/all');
     return res.json({ vehicles: enrichedVehicles });
   } catch (err) {
-    console.error('Error in /list/all endpoint:', {
-      error: err.toString(),
-      name: err.name,
-      message: err.message,
-      code: err.code,
-      stack: err.stack,
-      env: process.env.NODE_ENV
-    });
-    if (err.stack) {
-      console.error('Full error stack:', err.stack);
-    }
+    console.error('Error in /list/all:', err.message);
     if (err.name === 'MongoError' || err.name === 'MongoServerError') {
-      console.error('Returning MongoDB error response:', err);
+
       return res.status(500).json({
         error: 'Database error',
         details: 'There was an error accessing the database',
@@ -213,13 +177,13 @@ router.get('/list/all', async (req, res) => {
       });
     }
     if (err.name === 'ValidationError') {
-      console.error('Returning Validation error response:', err);
+
       return res.status(400).json({
         error: 'Validation error',
         details: err.message
       });
     }
-    console.error('Returning generic server error response:', err);
+
     return res.status(500).json({
       error: 'Server error',
       details: process.env.NODE_ENV === 'development' ? err.message : 'An unexpected error occurred',
@@ -283,6 +247,31 @@ router.put('/list/all/:id/status', async (req, res) => {
       return res.status(404).json({ error: 'Vehicle not found' });
     }
 
+    // ── Create notification for the driver ──────────────────────────────────
+    try {
+      const Notification = require('../models/Notification');
+      if (status === 'Activated') {
+        await new Notification({
+          driverId: vehicle.driverId,
+          type: 'vehicle_activated',
+          title: '🎉 Vehicle Activated!',
+          message: `Great news! Your vehicle ${vehicle.vehicleNumber} (${vehicle.vehicleName}) has been verified and activated by the admin. You can now start receiving loads. Happy driving! 🚛`,
+        }).save();
+        console.log(`🔔 Notification: Vehicle ${vehicle.vehicleNumber} activated for driver ${vehicle.driverId}`);
+      } else if (status === 'Rejected') {
+        await new Notification({
+          driverId: vehicle.driverId,
+          type: 'vehicle_rejected',
+          title: '❌ Vehicle Rejected',
+          message: `Your vehicle ${vehicle.vehicleNumber} (${vehicle.vehicleName}) was not approved. Please check your documents and re-submit, or contact support for help.`,
+        }).save();
+        console.log(`🔔 Notification: Vehicle ${vehicle.vehicleNumber} rejected for driver ${vehicle.driverId}`);
+      }
+    } catch (notifErr) {
+      console.error('Failed to create notification:', notifErr.message);
+      // Don't fail the status update if notification creation fails
+    }
+
     res.json({ message: 'Status updated successfully', vehicle });
   } catch (err) {
     console.error('Error updating vehicle status:', err);
@@ -290,10 +279,7 @@ router.put('/list/all/:id/status', async (req, res) => {
   }
 });
 
-// Hardcoded city coords lookup (same table as driver.js) ────────────────────
-const CITY_COORDS_V = {
-  "hyderabad":17.3850,"hyderabad_lng":78.4867,
-};
+
 // Inline coords function (avoids duplicating the whole table)
 function getVehicleCityCoords(cityName) {
   const CITIES = {

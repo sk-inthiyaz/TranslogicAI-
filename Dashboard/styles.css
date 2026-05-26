@@ -7,10 +7,90 @@ body {
 header {
   background: #1e3a8a;
   color: #fff;
-  padding: 1.5rem 2rem;
-  text-align: center;
+  padding: 1.2rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   box-shadow: 0 2px 8px rgba(30,58,138,0.08);
 }
+header h1 { margin: 0; font-size: 1.3rem; }
+.btn-messages {
+  background: rgba(255,255,255,0.15);
+  border: 1.5px solid rgba(255,255,255,0.3);
+  color: #fff;
+  padding: 8px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s;
+}
+.btn-messages:hover { background: rgba(255,255,255,0.25); }
+.msg-badge {
+  background: #dc2626;
+  color: #fff;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 1px 7px;
+  min-width: 18px;
+  text-align: center;
+}
+.msg-badge.hidden { display: none; }
+.messages-panel {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 14px;
+  margin-bottom: 24px;
+  overflow: hidden;
+}
+.messages-panel.hidden { display: none; }
+.messages-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: #eff6ff;
+  border-bottom: 1px solid #dbeafe;
+}
+.messages-header h2 { margin: 0; font-size: 16px; color: #1e3a8a; }
+.btn-close-messages {
+  background: none;
+  border: 1.5px solid #94a3b8;
+  color: #64748b;
+  padding: 4px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+.messages-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+.message-card {
+  padding: 14px 20px;
+  border-bottom: 1px solid #f1f5f9;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.message-card:hover { background: #f0f9ff; }
+.message-card.unread { background: #eff6ff; border-left: 4px solid #3b82f6; }
+.message-card.read { border-left: 4px solid transparent; }
+.message-card .sender-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.message-card .sender-badge.customer { background: #dbeafe; color: #1d4ed8; }
+.message-card .sender-badge.driver { background: #fef9c3; color: #854d0e; }
 main {
   max-width: 1200px;
   margin: 2rem auto;

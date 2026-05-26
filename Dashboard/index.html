@@ -6,11 +6,28 @@
   <title>TransLogic AI - Admin Dashboard</title>
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>  
+<body>
   <header>
     <h1>TransLogic AI - Company Dashboard</h1>
+    <!-- Notification Badge -->
+    <div id="headerActions" style="display:flex;align-items:center;gap:16px;">
+      <button id="toggleMessages" class="btn-messages" title="Messages">
+        📬 Messages <span id="msgBadge" class="msg-badge hidden">0</span>
+      </button>
+    </div>
   </header>
   <main>
+    <!-- Messages Panel (hidden by default) -->
+    <section id="messagesPanel" class="messages-panel hidden">
+      <div class="messages-header">
+        <h2>📬 Contact Messages</h2>
+        <button id="closeMessages" class="btn-close-messages">✕ Close</button>
+      </div>
+      <div id="messagesList" class="messages-list">
+        <!-- Messages populated by JS -->
+      </div>
+    </section>
+
     <section class="controls">
       <input type="text" id="searchInput" placeholder="Search by driver, vehicle, or status...">
     </section>

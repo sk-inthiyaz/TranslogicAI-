@@ -1,8 +1,7 @@
-// 📁 routes/getweather.js
+// routes/getweather.js
 const express = require("express");
 const axios = require("axios");
 const router = express.Router();
-require("dotenv").config();
 
 const WEATHER_API_KEY = process.env.OPENWEATHER_API_KEY;
 

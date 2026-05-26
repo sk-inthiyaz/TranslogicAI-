@@ -60,16 +60,32 @@ router.post("/", async (req, res) => {
     const weather = await getWeather(pickup);
     const price = calculatePrice(distance, weight, urgency, weather);
 
-    const prompt = `Pickup: ${pickup}, Drop: ${drop}, Weight: ${weight}kg, Urgency: ${urgency}, Weather: ${weather}. Suggest best delivery method with price ₹${price}.`;
+    // ── Gemini AI suggestion — wrapped separately so failures don't break the response ──
+    let reply = `Route from ${pickup} to ${drop}: ${distance.toFixed(0)} km. Estimated price: ₹${price}. Urgency: ${urgency}.`;
+    try {
+      const prompt = `You are Logix, a friendly logistics AI. The customer is shipping from ${pickup} to ${drop}. Distance: ${distance.toFixed(0)} km. Weight: ${weight}kg. Urgency: ${urgency}. Weather: ${weather}. Price: ₹${price}. Give a brief, friendly summary. IMPORTANT: Use exactly ${distance.toFixed(0)} km as the distance — do not calculate your own.`;
 
-    const geminiRes = await axios.post(
-      `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-      { contents: [{ parts: [{ text: prompt }] }] }
-    );
+      const geminiRes = await axios.post(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+        { contents: [{ parts: [{ text: prompt }] }] },
+        { timeout: 8000 }
+      );
 
-    const reply =
-      geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "No smart suggestion available.";
+      const aiReply = geminiRes.data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (aiReply) reply = aiReply;
+    } catch (geminiErr) {
+      console.warn('⚠️ Gemini API failed (using fallback reply):', geminiErr.message);
+      // reply stays as the fallback — no crash
+    }
+
+    // Determine suggested vehicle based on weight
+    const kg = parseFloat(weight);
+    let vehicleType = 'Van';
+    if (kg <= 500) vehicleType = 'Mini Van';
+    else if (kg <= 3000) vehicleType = 'Pickup Truck';
+    else if (kg <= 7000) vehicleType = 'LCV';
+    else if (kg <= 15000) vehicleType = 'Full Truckload';
+    else vehicleType = 'Heavy Truck';
 
     // ✅ Quote only — do NOT save to DB here.
     // The load is saved only when customer confirms via POST /api/logistics/book
@@ -79,7 +95,8 @@ router.post("/", async (req, res) => {
       routeData: geometry,
       eta: Math.round(duration),
       carbon: (distance * 0.21).toFixed(2),
-      vehicle: urgency === "High" ? "Bike" : "Van",
+      vehicle: vehicleType,
+      weather,  // send weather to frontend for surge/negotiation logic
       // Return coords so frontend can pass them to /book
       pickupLat: pickupCoords[1],
       pickupLng: pickupCoords[0],

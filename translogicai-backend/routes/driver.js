@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
+const bcrypt = require('bcryptjs');
 const Driver = require('../models/Driver');
 
 // Multer config for licence file upload
@@ -54,11 +55,12 @@ router.post('/signup', upload.single('licenceFile'), async (req, res) => {
       return res.status(409).json({ error: 'Driver already exists' });
     }
 
-    // Create new driver
+    // Create new driver with hashed password
+    const hashedPassword = await bcrypt.hash(password, 10);
     const driver = new Driver({
       phone,
       fullName,
-      password,
+      password: hashedPassword,
       licenceNumber,
       licenceFile: req.file.path,
       address,
@@ -78,7 +80,7 @@ router.post('/signup', upload.single('licenceFile'), async (req, res) => {
     });
   } catch (err) {
     console.error('Driver signup error:', err);
-    res.status(500).json({ error: 'Server error', details: err }); // Return full error object for debugging
+    res.status(500).json({ error: 'Server error', details: err.message });
   }
 });
 
@@ -91,8 +93,14 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Phone and password are required' });
     }
 
-    const driver = await Driver.findOne({ phone, password });
+    const driver = await Driver.findOne({ phone });
     if (!driver) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Compare password with hashed version
+    const isMatch = await bcrypt.compare(password, driver.password);
+    if (!isMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -294,7 +302,27 @@ router.post('/location', async (req, res) => {
   }
 });
 
-// ── Get pending loads — filtered by ALL driver vehicles' locations ──────────────
+// ── Parse vehicle capacity string to kg ─────────────────────────────────────
+// Handles formats like: "10 ton", "10000 kg", "10", "10T", "10 tonnes", etc.
+function parseCapacityToKg(capacityStr) {
+  if (!capacityStr) return null;
+  const s = capacityStr.toString().toLowerCase().trim();
+  const num = parseFloat(s.replace(/[^0-9.]/g, ''));
+  if (isNaN(num) || num <= 0) return null;
+  // If it contains 'ton' or 't' (but not 'kg'), treat as tons → multiply by 1000
+  if (s.includes('ton') || s.match(/\d+\s*t$/)) {
+    return num * 1000;
+  }
+  // If it contains 'kg', keep as is
+  if (s.includes('kg')) {
+    return num;
+  }
+  // No unit — if number is small (< 100), assume tons; else assume kg
+  if (num < 100) return num * 1000;
+  return num;
+}
+
+// ── Get pending loads — filtered by vehicle locations AND capacity ──────────
 const Load    = require('../models/Load');
 const Vehicle = require('../models/Vehicle');
 router.get('/pending-loads', async (req, res) => {
@@ -313,13 +341,25 @@ router.get('/pending-loads', async (req, res) => {
       lng: { $exists: true, $ne: null },
     });
 
-    // Build coord sources list
-    const coordSources = vehicles.map(v => ({
+    // ── Filter out vehicles that already have an active load ──────────────────
+    // A vehicle is "busy" if it's assigned to a load with status Assigned or In Transit
+    const busyVehicleIds = (await Load.find({
+      assignedVehicleId: { $in: vehicles.map(v => v._id) },
+      status: { $in: ['Assigned', 'In Transit'] },
+    }).select('assignedVehicleId')).map(l => l.assignedVehicleId?.toString());
+
+    const availableVehicles = vehicles.filter(v => !busyVehicleIds.includes(v._id.toString()));
+    console.log(`🚛 ${vehicles.length} total vehicles, ${busyVehicleIds.length} busy → ${availableVehicles.length} available`);
+
+    // Build coord sources list — including capacity in kg (only from AVAILABLE vehicles)
+    const coordSources = availableVehicles.map(v => ({
       lat:           v.lat,
       lng:           v.lng,
       vehicleId:     v._id.toString(),
       vehicleNumber: v.vehicleNumber,
       vehicleName:   v.vehicleName,
+      capacityKg:    parseCapacityToKg(v.capacity),  // parsed capacity
+      capacityRaw:   v.capacity,
     }));
 
     // Also include driver profile coords as fallback (if set)
@@ -327,6 +367,7 @@ router.get('/pending-loads', async (req, res) => {
       coordSources.push({
         lat: driver.lat, lng: driver.lng,
         vehicleId: null, vehicleNumber: 'Driver Profile', vehicleName: '',
+        capacityKg: null, capacityRaw: null,
       });
     }
 
@@ -354,16 +395,20 @@ router.get('/pending-loads', async (req, res) => {
       return obj;
     });
 
-    // For each load, find which vehicles are within 50km of the pickup
+    // For each load, find which vehicles are within 50km of pickup AND can carry the load
     const result = loadsWithCoords
       .map(load => {
         if (!load.pickupLat || !load.pickupLng) return null;
         const nearbyVehicles = coordSources
           .map(src => {
             const dist = haversine(src.lat, src.lng, load.pickupLat, load.pickupLng);
-            return dist <= 50
-              ? { ...src, distanceKm: Math.round(dist) }
-              : null;
+            if (dist > 50) return null; // Too far
+
+            // ── Capacity check: vehicle must be able to carry the load ──
+            // If capacity is known, load weight must be ≤ vehicle capacity
+            if (src.capacityKg && load.weight > src.capacityKg) return null;
+
+            return { ...src, distanceKm: Math.round(dist) };
           })
           .filter(Boolean)
           .sort((a, b) => a.distanceKm - b.distanceKm); // nearest first
@@ -378,8 +423,8 @@ router.get('/pending-loads', async (req, res) => {
       })
       .filter(Boolean);
 
-    const vNames = coordSources.map(s => `${s.vehicleNumber}(${s.lat?.toFixed(2)},${s.lng?.toFixed(2)})`).join(', ');
-    console.log(`🚛 Vehicles: [${vNames}] | ${allLoads.length} total loads → ${result.length} matched`);
+    const vNames = coordSources.map(s => `${s.vehicleNumber}(${s.capacityKg ? s.capacityKg+'kg' : '?'})`).join(', ');
+    console.log(`🚛 Vehicles: [${vNames}] | ${allLoads.length} total loads → ${result.length} matched (capacity filtered)`);
     res.json(result);
   } catch (err) {
     console.error('Pending loads error:', err.message);
@@ -433,6 +478,39 @@ router.get('/my-loads', async (req, res) => {
     if (!driverId) return res.status(400).json({ error: 'driverId required' });
     const loads = await Load.find({ assignedDriverId: driverId }).sort({ createdAt: -1 });
     res.json(loads);
+  } catch (err) {
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Get driver notifications ──────────────────────────────────────────────────
+const Notification = require('../models/Notification');
+router.get('/notifications', async (req, res) => {
+  try {
+    const { driverId } = req.query;
+    if (!driverId) return res.status(400).json({ error: 'driverId required' });
+    const notifications = await Notification.find({ driverId }).sort({ createdAt: -1 }).limit(50);
+    const unreadCount = await Notification.countDocuments({ driverId, read: false });
+    res.json({ notifications, unreadCount });
+  } catch (err) {
+    console.error('Notifications error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ── Mark notifications as read ────────────────────────────────────────────────
+router.post('/notifications/mark-read', async (req, res) => {
+  try {
+    const { driverId, notificationIds } = req.body;
+    if (!driverId) return res.status(400).json({ error: 'driverId required' });
+    if (notificationIds && Array.isArray(notificationIds)) {
+      // Mark specific notifications
+      await Notification.updateMany({ _id: { $in: notificationIds }, driverId }, { read: true });
+    } else {
+      // Mark all as read
+      await Notification.updateMany({ driverId, read: false }, { read: true });
+    }
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Server error' });
   }
