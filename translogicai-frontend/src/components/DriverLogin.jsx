@@ -17,8 +17,7 @@ function DriverLogin() {
     address: "",
     city: "",
     state: "",
-    pincode: "",
-    dob: ""
+    pincode: ""
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -38,8 +37,7 @@ function DriverLogin() {
       address: "",
       city: "",
       state: "",
-      pincode: "",
-      dob: ""
+      pincode: ""
     });
   };
 
@@ -286,7 +284,7 @@ function DriverLogin() {
                   />
                 </div>
 
-                <input type="date" placeholder="Date of Birth" name="dob" className="border rounded px-3 py-2" value={form.dob} onChange={handleFormChange} required />
+
                 <button type="submit" className="bg-blue-700 text-white py-2 rounded font-semibold hover:bg-blue-800 transition" disabled={loading}>
                   {loading ? "Loading..." : "Register"}
                 </button>

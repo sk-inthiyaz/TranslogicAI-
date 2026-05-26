@@ -57,16 +57,16 @@ function CustomerLogin() {
         body: JSON.stringify({ phone, password: e.target[1].value })
       });
       const data = await res.json();
-      if (res.ok) {
-        // Save customer data to localStorage so profile/bookings work
+      if (res.ok && data.customer) {
         localStorage.setItem("customerData", JSON.stringify(data.customer));
         setSuccess("Login successful!");
-        setTimeout(() => navigate("/"), 1000);
+        setTimeout(() => navigate("/customer/home"), 1000);
       } else {
-        setError(data.error || "Login failed");
+        setError(data.error || "Login failed - invalid credentials");
       }
     } catch (err) {
-      setError("Network error");
+      console.error('Login error:', err);
+      setError(`Network error: ${err.message}`);
     }
     setLoading(false);
   };
