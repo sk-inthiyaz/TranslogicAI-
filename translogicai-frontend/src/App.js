@@ -323,8 +323,8 @@ function App() {
         <Route path="/contact"      element={<><Navbar /><Contact /><Footer /></>} />
         <Route path="/profile"     element={<PlaceholderPage title="Profile" />} />
 
-        {/* Root redirect → customer home */}
-        <Route path="/" element={<Navigate to="/customer/home" replace />} />
+        {/* Root redirect → entry page */}
+        <Route path="/" element={<Navigate to="/entry" replace />} />
       </Routes>
     </div>
   );
