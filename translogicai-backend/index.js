@@ -39,6 +39,7 @@ const detectObjectsHandler = require("./routes/detectObjects");
 const customerHandler = require('./routes/customer');
 const vehicleHandler = require('./routes/vehicle');
 const driverHandler = require('./routes/driver');
+const adminHandler = require('./routes/admin');
 
 app.use("/api/route", routeHandler);        // handles /api/route
 app.use("/api/weather", weatherHandler);    // optional, for weather-only
@@ -51,6 +52,7 @@ app.use('/vehicle', vehicleHandler);     // backwards compat for dashboard
 app.use('/list', vehicleHandler);        // backwards compat for /list/all
 
 app.use('/api/driver', driverHandler); // handles /api/driver
+app.use('/api/admin', adminHandler);   // handles /api/admin (admin login/verify)
 
 const contactHandler = require('./routes/contact');
 app.use('/api/contact', contactHandler); // handles /api/contact (contact form messages)

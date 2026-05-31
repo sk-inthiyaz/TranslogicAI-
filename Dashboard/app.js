@@ -1,5 +1,45 @@
-// Fetch and render vehicle/driver data
-const API_URL = 'http://localhost:5000/vehicle/list/all';
+// ── Auth Guard — redirect to login if not authenticated ─────────────────────
+(async function authGuard() {
+  const token = localStorage.getItem('adminToken');
+  if (!token) {
+    window.location.href = 'login.html';
+    return;
+  }
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/admin/verify`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminEmail');
+      window.location.href = 'login.html';
+      return;
+    }
+  } catch {
+    // Server unreachable — allow cached session to proceed
+    console.warn('Could not verify token with server, proceeding with cached session');
+  }
+})();
+
+// ── Logout Handler ──────────────────────────────────────────────────────────
+const logoutBtn = document.getElementById('logoutBtn');
+if (logoutBtn) {
+  logoutBtn.addEventListener('click', async () => {
+    const token = localStorage.getItem('adminToken');
+    try {
+      await fetch(`${API_BASE_URL}/api/admin/logout`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+    } catch { /* ignore */ }
+    localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminEmail');
+    window.location.href = 'login.html';
+  });
+}
+
+// ── Fetch and render vehicle/driver data ────────────────────────────────────
+const API_URL = `${API_BASE_URL}/vehicle/list/all`;
 const tableBody = document.querySelector('#vehiclesTable tbody');
 const searchInput = document.getElementById('searchInput');
 const modal = document.getElementById('modal');
@@ -89,7 +129,7 @@ async function viewDocuments(vehicleId) {
       .map(([key, value]) => `
         <div class="document-item">
           <span class="document-label">${key.replace(/([A-Z])/g, ' $1').trim()}:</span>
-          <a href="http://localhost:5000/${value}" target="_blank" class="document-link">View</a>
+          <a href="${API_BASE_URL}/${value}" target="_blank" class="document-link">View</a>
         </div>
       `).join('');
 
@@ -109,7 +149,7 @@ async function viewDocuments(vehicleId) {
 // Update vehicle status
 async function updateStatus(vehicleId, newStatus) {
   try {
-    const response = await fetch(`http://localhost:5000/vehicle/list/all/${vehicleId}/status`, {
+    const response = await fetch(`${API_BASE_URL}/vehicle/list/all/${vehicleId}/status`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -147,7 +187,7 @@ if (vehicleForm) {
     e.preventDefault();
     const formData = new FormData(vehicleForm);
     try {
-      const response = await fetch('http://localhost:5000/vehicle/add', {
+      const response = await fetch(`${API_BASE_URL}/vehicle/add`, {
         method: 'POST',
         body: formData
       });
@@ -165,7 +205,7 @@ if (vehicleForm) {
         alert('Error adding vehicle: ' + (data.error || 'Unknown error'));
       }
     } catch (err) {
-      alert('Network error while adding vehicle. Make sure the backend is running and accessible at http://localhost:5000/vehicle/add');
+      alert('Network error while adding vehicle. Make sure the backend is running.');
       console.error('Vehicle add error:', err);
     }
   });
@@ -180,7 +220,7 @@ const closeMessagesBtn = document.getElementById('closeMessages');
 
 async function fetchMessages() {
   try {
-    const response = await fetch('http://localhost:5000/api/contact');
+    const response = await fetch(`${API_BASE_URL}/api/contact`);
     const data = await response.json();
     if (data.messages) {
       renderMessages(data.messages);
@@ -228,7 +268,7 @@ function renderMessages(messages) {
 
 async function markMessageRead(msgId, el) {
   try {
-    await fetch(`http://localhost:5000/api/contact/${msgId}/read`, { method: 'PUT' });
+    await fetch(`${API_BASE_URL}/api/contact/${msgId}/read`, { method: 'PUT' });
     el.classList.remove('unread');
     el.classList.add('read');
     // Refresh badge count
