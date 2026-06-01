@@ -17,7 +17,8 @@ function DriverLogin() {
     address: "",
     city: "",
     state: "",
-    pincode: ""
+    pincode: "",
+    dob: ""
   });
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -37,7 +38,8 @@ function DriverLogin() {
       address: "",
       city: "",
       state: "",
-      pincode: ""
+      pincode: "",
+      dob: ""
     });
   };
 
@@ -252,6 +254,9 @@ function DriverLogin() {
                 <input type="text" placeholder="Driving Licence Number" name="licenceNumber" className="border rounded px-3 py-2" value={form.licenceNumber} onChange={handleFormChange} required />
                 <label className="font-medium">Driving Licence Upload
                   <input type="file" name="licenceFile" accept="application/pdf,image/*" onChange={handleFormChange} required className="border rounded px-3 py-2 w-full mt-1" />
+                </label>
+                <label className="font-medium">Date of Birth
+                  <input type="date" name="dob" className="border rounded px-3 py-2 w-full mt-1" value={form.dob} onChange={handleFormChange} required />
                 </label>
                 <input type="text" placeholder="Address" name="address" className="border rounded px-3 py-2" value={form.address} onChange={handleFormChange} required />
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
